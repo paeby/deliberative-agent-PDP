@@ -64,7 +64,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			break;
 		case BFS:
 			// ...
-			plan = naivePlan(vehicle, tasks);
+			plan = optPlan(vehicle, tasks);
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
@@ -90,7 +90,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 			
 			//Delivery
-			for (Task t: taskTo(vehicle.getCurrentTasks(), current)) {
+			for (Task t: taskTo(first.getTasks(), current)) {
 				first.getPlan().appendDelivery(t);
 				first.increment();
 			}
@@ -99,11 +99,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			Task newTask = taskFrom(tasks, current);
 			ExtendedPlan newPlan = copyPlan(first, current);;
 			boolean pickedUp = false;
-			if (newTask != null && canPickup(vehicle, newTask)) {
+			if (newTask != null && canPickup(vehicle, newTask) && !(newPlan.getTasks().contains(newTask))) {
 				pickedUp = true;
+				newPlan.addTask(newTask);
 				newPlan.getPlan().appendPickup(newTask);
 			}
-			
+	
 			//Move
 			for (City neighbour: current.neighbors()) {
 				ExtendedPlan nPlan = copyPlan(first, neighbour);
@@ -164,7 +165,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return res;
 	}
 	
-	private HashSet<Task> taskTo(TaskSet tasks, City city) {
+	private HashSet<Task> taskTo(HashSet<Task> tasks, City city) {
 		HashSet<Task> res = new HashSet<Task>();
 		for (Task task: tasks) {
 			if (task.deliveryCity.name == city.name) {
@@ -199,6 +200,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		private Plan plan; 
 		private City city; //Final city in which vehicle arrived
 		private int count; //Number of tasks delivered
+		private HashSet<Task> tasks = new HashSet<Task>();
 		
 		public ExtendedPlan(Plan plan, City current, int c) {
 			this.plan = plan;
@@ -220,6 +222,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			return count;
 		}
 		
+		public HashSet<Task> getTasks() {
+			return tasks;
+		}
+		
 		public void setCount(int c) {
 			count = c;
 		}
@@ -234,6 +240,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		public void setCity(City c) {
 			city = c;
+		}
+		
+		public void addTask(Task t) {
+			tasks.add(t);
 		}
 	}
 	
