@@ -6,8 +6,6 @@ import java.util.HashSet;
 import java.util.PriorityQueue;
 import java.util.Set;
 
-import epfl.lia.logist.task.TasksetDescriptor;
-
 import logist.simulation.Vehicle;
 import logist.agent.Agent;
 import logist.behavior.DeliberativeBehavior;
@@ -77,6 +75,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
 		City current = vehicle.getCurrentCity();
 		ExtendedPlan plan = new ExtendedPlan(new Plan(current), current);
+		
+		for(Task t: vehicle.getCurrentTasks()) {
+			tasks.remove(t);
+		}
 		
 		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(10, new PlanComparator());
 		queue.add(plan);
