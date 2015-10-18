@@ -1,9 +1,17 @@
 package template;
 
 /* import table */
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.PriorityQueue;
+import java.util.Set;
+
+import epfl.lia.logist.task.TasksetDescriptor;
+
 import logist.simulation.Vehicle;
 import logist.agent.Agent;
 import logist.behavior.DeliberativeBehavior;
+import logist.plan.Action;
 import logist.plan.Plan;
 import logist.task.Task;
 import logist.task.TaskDistribution;
@@ -66,6 +74,51 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 	
+	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
+		City current = vehicle.getCurrentCity();
+		ExtendedPlan plan = new ExtendedPlan(new Plan(current), current);
+		
+		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(10, new PlanComparator());
+		queue.add(plan);
+		
+		while(queue.size() != 0) {
+			ExtendedPlan first = queue.poll();
+			if (first.getCount() == tasks.size()) {
+				return first.getPlan();
+			}
+			
+			//Delivery
+			for (Task t: taskTo(vehicle.getCurrentTasks(), current)) {
+				first.getPlan().appendDelivery(t);
+				first.increment();
+			}
+			
+			//Pickup
+			Task newTask = taskFrom(tasks, current);
+			ExtendedPlan newPlan = copyPlan(first, current);;
+			boolean pickedUp = false;
+			if (newTask != null && canPickup(vehicle, newTask)) {
+				pickedUp = true;
+				newPlan.getPlan().appendPickup(newTask);
+			}
+			
+			//Move
+			for (City neighbour: current.neighbors()) {
+				ExtendedPlan nPlan = copyPlan(first, neighbour);
+				nPlan.getPlan().appendMove(neighbour);
+				queue.add(nPlan);
+				
+				if(pickedUp) {
+					ExtendedPlan nPlan1 = copyPlan(newPlan, neighbour);
+					nPlan1.getPlan().appendMove(neighbour);
+					queue.add(nPlan1);
+				}
+			}
+		}
+		return null; //Some tasks could not be delivered
+		
+	}
+	
 	private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
 		City current = vehicle.getCurrentCity();
 		Plan plan = new Plan(current);
@@ -98,4 +151,98 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			// plan is computed.
 		}
 	}
+	
+	private Task taskFrom(TaskSet tasks, City city) {
+		Task res = null;
+		for (Task task: tasks) {
+			if (task.pickupCity.name == city.name) {
+				res = task;
+			}
+		}
+		return res;
+	}
+	
+	private HashSet<Task> taskTo(TaskSet tasks, City city) {
+		HashSet<Task> res = new HashSet<Task>();
+		for (Task task: tasks) {
+			if (task.deliveryCity.name == city.name) {
+				res.add(task);
+			}
+		}
+		return res;
+	}
+	
+	private boolean canPickup(Vehicle vehicle, Task task) {
+		return (vehicle.getCurrentTasks().weightSum() + task.weight <= vehicle.capacity());
+	}
+	
+	private ExtendedPlan copyPlan(ExtendedPlan plan, City city) {
+		ExtendedPlan newPlan = new ExtendedPlan(new Plan(city), city);
+		for (Action a: plan.getPlan()) {
+			newPlan.getPlan().append(a);
+		}
+		newPlan.setCount(plan.getCount());
+		return newPlan;
+	}
+	
+	private boolean planFinished(PriorityQueue<Plan> plans) {
+		boolean res = false;
+		for (Plan p: plans) {
+			 res = p.isSealed() ? true : false;
+		}
+		return res;
+	}
+	
+	public class ExtendedPlan {
+		private Plan plan; 
+		private City city; //Final city in which vehicle arrived
+		private int count; //Number of tasks delivered
+		
+		public ExtendedPlan(Plan plan, City current, int c) {
+			this.plan = plan;
+			count = c;
+			city = current;
+		}
+		
+		public ExtendedPlan(Plan plan, City current) {
+			this.plan = plan;
+			city = current;
+			count = 0;
+		}
+		
+		public Plan getPlan() {
+			return plan;
+		}
+		
+		public int getCount() {
+			return count;
+		}
+		
+		public void setCount(int c) {
+			count = c;
+		}
+		
+		public void increment() {
+			count++;
+		}
+		
+		public City getCity() {
+			return city;
+		}
+		
+		public void setCity(City c) {
+			city = c;
+		}
+	}
+	
+	public class PlanComparator implements Comparator<ExtendedPlan> {
+		@Override
+		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
+			if (p1.getPlan().totalDistance() > p2.getPlan().totalDistance()) return -1;
+			else if(p1.getPlan().totalDistance() < p2.getPlan().totalDistance()) return 1;	
+			else return 0;
+		}
+	}
 }
+
+
