@@ -96,16 +96,20 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 			
 			//Pickup
-			Task newTask = taskFrom(tasks, current);
-			ExtendedPlan newPlan = copyPlan(first, current);;
+			HashSet<Task> newTasks = tasksFrom(tasks, current);
+			ExtendedPlan newPlan = copyPlan(first, current);
 			boolean pickedUp = false;
 			if (newTask != null && canPickup(vehicle, newTask) && !(newPlan.getTasks().contains(newTask))) {
 				pickedUp = true;
 				newPlan.addTask(newTask);
 				newPlan.getPlan().appendPickup(newTask);
 			}
-	
+			
+			for(Task t: tasksFrom(newTasks, tasks, current, newPlan.getTasks(), vehicle)) {
+				
+			}
 			//Move
+			
 			for (City neighbour: current.neighbors()) {
 				ExtendedPlan nPlan = copyPlan(first, neighbour);
 				nPlan.getPlan().appendMove(neighbour);
@@ -155,11 +159,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 	
-	private Task taskFrom(TaskSet tasks, City city) {
-		Task res = null;
+	// add all tasks from the city (only available tasks and not exceeding a weight)
+	private HashSet<Task> tasksFrom(HashSet<Task> newTasks, TaskSet tasks, City current, HashSet<Task> planTasks, Vehicle vehicle) {
+		HashSet<Task> res = new HashSet<Task>();
+		
 		for (Task task: tasks) {
-			if (task.pickupCity.name == city.name) {
-				res = task;
+			if (task.pickupCity.name == current.name) {
+				
+				res.add(task);
 			}
 		}
 		return res;
