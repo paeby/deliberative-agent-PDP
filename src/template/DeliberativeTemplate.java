@@ -148,11 +148,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 	
-	private Task taskFrom(TaskSet tasks, City city) {
-		Task res = null;
+	// add all tasks from the city (only available tasks and not exceeding a weight)
+	private HashSet<Task> tasksFrom(HashSet<Task> newTasks, TaskSet tasks, City current, HashSet<Task> planTasks, Vehicle vehicle) {
+		HashSet<Task> res = new HashSet<Task>();
+		
 		for (Task task: tasks) {
-			if (task.pickupCity.name == city.name) {
-				res = task;
+			if (task.pickupCity.name == current.name) {
+				
+				res.add(task);
 			}
 		}
 		return res;
