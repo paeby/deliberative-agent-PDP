@@ -87,14 +87,18 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, tasks, vehicle.getCurrentTasks(), start);
 		
-		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(10, new PlanComparator());
+		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100, new PlanComparator());
 		queue.add(plan);
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
-			if(first.getCount() == tasks.size()) 
+			if(first.getCount() == tasks.size()){
+				for(Action a: first.getPlan()){
+					System.out.println(a.toString());
+				}
 				return first.getPlan(); //Termination condition
-			
+			}
+				
 			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
 				Task next = getTask(tasks, carried.intValue());
 				ExtendedPlan newPlan = new ExtendedPlan(
@@ -244,14 +248,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		public void increment() {
 			count++;
-		}
-		
-		public void addCarried(Integer i) {
-			carried.add(i);
-		}
-		
-		public void remove(Integer i) {
-			carried.add(i);
 		}
 		
 		public City getCity() {
