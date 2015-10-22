@@ -68,7 +68,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			break;
 		case BFS:
 			// ...
-			plan = naivePlan(vehicle, tasks);
+			plan = optPlan(vehicle, tasks);
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
@@ -77,13 +77,15 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	}
 	
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
-		start = vehicle.getCurrentCity(); 
-				
+		start = vehicle.getCurrentCity();
+		System.out.println(start.name);
+		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
 			tasks.remove(t);
+			tempWeight += t.weight;
 		}
 		
-		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tasks, vehicle.getCurrentTasks());
+		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, tasks, vehicle.getCurrentTasks(), start);
 		
 		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(10, new PlanComparator());
 		queue.add(plan);
@@ -94,22 +96,42 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 				return first.getPlan(); //Termination condition
 			
 			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
-				ExtendedPlan newPlan = new ExtendedPlan(first.getPlan(), first.count+1,	first.remaining, first.carried);
 				Task next = getTask(tasks, carried.intValue());
-				newPlan.getPlan().appendMove(next.deliveryCity);
+				ExtendedPlan newPlan = new ExtendedPlan(
+					first.getPlan(), 
+					first.count+1, 
+					first.getWeight() - next.weight, 
+					first.remaining, 
+					first.carried, 
+					first.getCity());
+				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
+					newPlan.getPlan().appendMove(c);
+				}
+				newPlan.setCity(next.deliveryCity);
 				newPlan.getPlan().appendDelivery(next);
 				newPlan.carried.remove(carried);
 				queue.add(newPlan);
 			}
 			
-			for(Integer pickup: first.getRemaining()) { // Adds a pickup to a plan
-				ExtendedPlan newPlan = new ExtendedPlan(first.getPlan(), first.count, first.remaining, first.carried);
+			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
 				Task next = getTask(tasks, pickup.intValue());
-				newPlan.getPlan().appendMove(next.pickupCity);
-				newPlan.getPlan().appendPickup(next);
-				newPlan.remaining.remove(pickup);
-				newPlan.carried.add(pickup);
-				queue.add(newPlan);
+				if (canPickup(vehicle, next, first)) {
+					ExtendedPlan newPlan = new ExtendedPlan(
+						first.getPlan(), 
+						first.count, 
+						first.getWeight() + next.weight, 
+						first.remaining, 
+						first.carried, 
+						first.getCity());
+					for (City c: newPlan.getCity().pathTo(next.pickupCity)) {
+						newPlan.getPlan().appendMove(c);
+					}
+					newPlan.setCity(next.pickupCity);
+					newPlan.getPlan().appendPickup(next);
+					newPlan.remaining.remove(pickup);
+					newPlan.carried.add(pickup);
+					queue.add(newPlan);
+				}
 			}
 		}
 		return null; //Some tasks could not be delivered
@@ -148,35 +170,18 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 	
-	// add all tasks from the city (only available tasks and not exceeding a weight)
-	private HashSet<Task> tasksFrom(HashSet<Task> newTasks, TaskSet tasks, City current, HashSet<Task> planTasks, Vehicle vehicle) {
-		HashSet<Task> res = new HashSet<Task>();
-		
-		for (Task task: tasks) {
-			if (task.pickupCity.name == current.name) {
-				
-				res.add(task);
-			}
-		}
-		return res;
-	}
-	
-	private HashSet<Task> taskTo(HashSet<Task> tasks, City city) {
-		HashSet<Task> res = new HashSet<Task>();
-		for (Task task: tasks) {
-			if (task.deliveryCity.name == city.name) {
-				res.add(task);
-			}
-		}
-		return res;
-	}
-	
-	private boolean canPickup(Vehicle vehicle, Task task) {
-		return (vehicle.getCurrentTasks().weightSum() + task.weight <= vehicle.capacity());
+	private boolean canPickup(Vehicle vehicle, Task task, ExtendedPlan plan) {
+		return (plan.getWeight() + task.weight <= vehicle.capacity());
 	}
 	
 	private ExtendedPlan copyPlan(ExtendedPlan plan) {
-		ExtendedPlan newPlan = new ExtendedPlan(new Plan(start), plan.getCount(), plan.getRemaining(), plan.getCarried());
+		ExtendedPlan newPlan = new ExtendedPlan(
+			new Plan(start), 
+			plan.getCount(), 
+			plan.getWeight(),
+			plan.getRemaining(), 
+			plan.getCarried(), 
+			plan.getCity());
 		for (Action a: plan.getPlan()) {
 			newPlan.getPlan().append(a);
 		}
@@ -185,15 +190,17 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	
 	public class ExtendedPlan {
 		private Plan plan; 
-		//private City city; //Final city in which vehicle arrived
 		private int count; //Number of tasks delivered
-		//private HashSet<Task> tasks = new HashSet<Task>();
-		private HashSet<Integer> carried = new HashSet<Integer>();
+		private City city;
+		private int weight; //Sum of all tasks carried by vehicle in plan
+		private HashSet<Integer> carried = new HashSet<Integer>(); 
 		private HashSet<Integer> remaining = new HashSet<Integer>();
 		
-		public ExtendedPlan(Plan plan, int c, TaskSet tasks, TaskSet carrying) {
+		public ExtendedPlan(Plan plan, int c, int w, TaskSet tasks, TaskSet carrying, City city) {
 			this.plan = plan;
 			count = c;
+			weight = w;
+			this.city = city;
 			for (Task t: tasks) {
 				remaining.add(new Integer(t.id));
 			}
@@ -202,9 +209,11 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 		}
 		
-		public ExtendedPlan(Plan plan, int c, HashSet<Integer> tasks, HashSet<Integer> carrying) {
+		public ExtendedPlan(Plan plan, int c, int w, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
 			this.plan = plan;
 			count = c;
+			weight = w;
+			this.city = city;
 			for (Integer t: tasks) {
 				remaining.add(new Integer(t.intValue()));
 			}
@@ -244,6 +253,23 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		public void remove(Integer i) {
 			carried.add(i);
 		}
+		
+		public City getCity() {
+			return city;
+		}
+		
+		public void setCity(City newCity) {
+			city = newCity;
+		}
+		
+		public int getWeight() {
+			return weight;
+		}
+		
+		public void setWeight(int newWeight) {
+			weight = newWeight;
+		}
+		
 	}
 	
 	private Task getTask(TaskSet tasks, int id) {
