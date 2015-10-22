@@ -72,11 +72,13 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
-		}		
+		}
+		System.out.println(plan.totalDistance());
 		return plan;
 	}
 	
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
+		double min = Double.MAX_VALUE;
 		start = vehicle.getCurrentCity();
 		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
@@ -84,37 +86,18 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			tempWeight += t.weight;
 		}
 		
-		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, tasks, vehicle.getCurrentTasks(), start);
+		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, 0, tasks, vehicle.getCurrentTasks(), start);
 		
 		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100, new PlanComparator());
 		queue.add(plan);
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
-
+			//System.out.println(first.plan.totalDistance() +" depth:"+ first.depth + " count:" + first.count);
 				
-			if(first.getCount() == tasks.size()) {
-				for(Action a: first.getPlan()) System.out.println(a.toString());
+			if(first.getCount() == tasks.size() && first.plan.totalDistance() <= min) {
+				//for(Action a: first.getPlan()) //System.out.println(a.toString());
 				return first.getPlan(); //Termination condition
-			}
-			
-			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
-				Task next = getTask(tasks, carried.intValue());
-				ExtendedPlan newPlan = new ExtendedPlan(
-					first.getPlan(), 
-					first.count+1, 
-					first.getWeight() - next.weight, 
-					first.remaining, 
-					first.carried, 
-					first.getCity());
-				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
-					newPlan.getPlan().appendMove(c);
-					// System.out.println("Move to " + c.name + " for delivery at " + next.deliveryCity);
-				}
-				newPlan.setCity(next.deliveryCity);
-				newPlan.getPlan().appendDelivery(next);
-				newPlan.carried.remove(carried);
-				queue.add(newPlan);
 			}
 			
 			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
@@ -123,7 +106,8 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					ExtendedPlan newPlan = new ExtendedPlan(
 						first.getPlan(), 
 						first.count, 
-						first.getWeight() + next.weight, 
+						first.getWeight() + next.weight,
+						first.depth + 1,
 						first.remaining, 
 						first.carried, 
 						first.getCity());
@@ -136,6 +120,34 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					newPlan.remaining.remove(pickup);
 					newPlan.carried.add(pickup);
 					queue.add(newPlan);
+					
+					if(newPlan.plan.totalDistance() < min && newPlan.count == tasks.size()){
+						min = newPlan.plan.totalDistance();
+					}
+				}
+			}
+
+			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
+				Task next = getTask(tasks, carried.intValue());
+				ExtendedPlan newPlan = new ExtendedPlan(
+					first.getPlan(), 
+					first.count + 1, 
+					first.depth + 1,
+					first.getWeight() - next.weight, 
+					first.remaining, 
+					first.carried, 
+					first.getCity());
+				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
+					newPlan.getPlan().appendMove(c);
+					// System.out.println("Move to " + c.name + " for delivery at " + next.deliveryCity);
+				}
+				newPlan.setCity(next.deliveryCity);
+				newPlan.getPlan().appendDelivery(next);
+				newPlan.carried.remove(carried);
+				queue.add(newPlan);
+				
+				if(newPlan.plan.totalDistance() < min && newPlan.count == tasks.size()){
+					min = newPlan.plan.totalDistance();
 				}
 			}
 		}
@@ -184,6 +196,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			new Plan(start), 
 			plan.getCount(), 
 			plan.getWeight(),
+			plan.depth,
 			plan.getRemaining(), 
 			plan.getCarried(), 
 			plan.getCity());
@@ -208,11 +221,13 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		private int weight; //Sum of all tasks carried by vehicle in plan
 		private HashSet<Integer> carried = new HashSet<Integer>(); 
 		private HashSet<Integer> remaining = new HashSet<Integer>();
+		private int depth;
 		
-		public ExtendedPlan(Plan plan, int c, int w, TaskSet tasks, TaskSet carrying, City city) {
+		public ExtendedPlan(Plan plan, int c, int w, int d, TaskSet tasks, TaskSet carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
 			weight = w;
+			this.depth = d;
 			this.city = city;
 			for (Task t: tasks) {
 				remaining.add(new Integer(t.id));
@@ -222,10 +237,11 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 		}
 		
-		public ExtendedPlan(Plan plan, int c, int w, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
+		public ExtendedPlan(Plan plan, int c, int w, int d, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
 			weight = w;
+			depth = d;
 			this.city = city;
 			for (Integer t: tasks) {
 				remaining.add(new Integer(t.intValue()));
@@ -289,9 +305,17 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	public class PlanComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
-			if (p1.getPlan().totalDistance() > p2.getPlan().totalDistance()) return -1;
-			else if(p1.getPlan().totalDistance() < p2.getPlan().totalDistance()) return 1;	
-			else return 0;
+			if(p1.depth < p2.depth){
+				return 1;
+			}
+			else if(p1.depth == p2.depth){
+				if (p1.getPlan().totalDistance() > p2.getPlan().totalDistance()) return -1;
+				else if(p1.getPlan().totalDistance() < p2.getPlan().totalDistance()) return 1;	
+				else return 0;
+			}
+			else{
+				return -1;
+			}
 		}
 	}
 }
