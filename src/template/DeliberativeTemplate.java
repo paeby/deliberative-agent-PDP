@@ -78,7 +78,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
 		start = vehicle.getCurrentCity();
-		System.out.println(start.name);
 		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
 			tasks.remove(t);
@@ -92,8 +91,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
-			if(first.getCount() == tasks.size()) 
+			if(first.getCount() == tasks.size()) {
+				for(Action a: first.getPlan()) System.out.println(a.toString());
 				return first.getPlan(); //Termination condition
+			}
 			
 			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
 				Task next = getTask(tasks, carried.intValue());
@@ -106,6 +107,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					first.getCity());
 				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
 					newPlan.getPlan().appendMove(c);
+					// System.out.println("Move to " + c.name + " for delivery at " + next.deliveryCity);
 				}
 				newPlan.setCity(next.deliveryCity);
 				newPlan.getPlan().appendDelivery(next);
@@ -125,6 +127,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 						first.getCity());
 					for (City c: newPlan.getCity().pathTo(next.pickupCity)) {
 						newPlan.getPlan().appendMove(c);
+						// System.out.println("Move to " + c.name + " for pickup at " + next.pickupCity);
 					}
 					newPlan.setCity(next.pickupCity);
 					newPlan.getPlan().appendPickup(next);
@@ -188,6 +191,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return newPlan;
 	}
 	
+	private Plan copy(Plan plan) {
+		Plan p = new Plan(start);
+		for(Action a: plan) {
+			p.append(a);
+		}
+		return p;
+	}
+	
 	public class ExtendedPlan {
 		private Plan plan; 
 		private int count; //Number of tasks delivered
@@ -197,7 +208,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		private HashSet<Integer> remaining = new HashSet<Integer>();
 		
 		public ExtendedPlan(Plan plan, int c, int w, TaskSet tasks, TaskSet carrying, City city) {
-			this.plan = plan;
+			this.plan = copy(plan);
 			count = c;
 			weight = w;
 			this.city = city;
@@ -210,7 +221,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 		
 		public ExtendedPlan(Plan plan, int c, int w, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
-			this.plan = plan;
+			this.plan = copy(plan);
 			count = c;
 			weight = w;
 			this.city = city;
@@ -244,14 +255,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		public void increment() {
 			count++;
-		}
-		
-		public void addCarried(Integer i) {
-			carried.add(i);
-		}
-		
-		public void remove(Integer i) {
-			carried.add(i);
 		}
 		
 		public City getCity() {
