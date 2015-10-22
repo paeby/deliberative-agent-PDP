@@ -1,6 +1,7 @@
 package template;
 
 /* import table */
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.PriorityQueue;
@@ -36,6 +37,9 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	/* the planning class */
 	Algorithm algorithm;
 	
+	/* Starting city of the current plan */
+	City start;
+	
 	@Override
 	public void setup(Topology topology, TaskDistribution td, Agent agent) {
 		this.topology = topology;
@@ -64,7 +68,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			break;
 		case BFS:
 			// ...
-			plan = optPlan(vehicle, tasks);
+			plan = naivePlan(vehicle, tasks);
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
@@ -73,53 +77,42 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	}
 	
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
-		City current = vehicle.getCurrentCity();
-		ExtendedPlan plan = new ExtendedPlan(new Plan(current), current);
-		
+		start = vehicle.getCurrentCity(); 
+				
 		for(Task t: vehicle.getCurrentTasks()) {
 			tasks.remove(t);
 		}
+		
+		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tasks, vehicle.getCurrentTasks());
 		
 		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(10, new PlanComparator());
 		queue.add(plan);
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
-			if (first.getCount() == tasks.size()) {
-				return first.getPlan();
+			if(first.getCount() == tasks.size()) 
+				return first.getPlan(); //Termination condition
+			
+			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
+				ExtendedPlan newPlan = new ExtendedPlan(first.getPlan(), first.count+1,	first.remaining, first.carried);
+				Task next = getTask(tasks, carried.intValue());
+				newPlan.getPlan().appendMove(next.deliveryCity);
+				newPlan.getPlan().appendDelivery(next);
+				newPlan.carried.remove(carried);
+				queue.add(newPlan);
 			}
 			
-			//Delivery
-			for (Task t: taskTo(first.getTasks(), current)) {
-				first.getPlan().appendDelivery(t);
-				first.increment();
-			}
-			
-			//Pickup
-			Task newTask = taskFrom(tasks, current);
-			ExtendedPlan newPlan = copyPlan(first, current);;
-			boolean pickedUp = false;
-			if (newTask != null && canPickup(vehicle, newTask) && !(newPlan.getTasks().contains(newTask))) {
-				pickedUp = true;
-				newPlan.addTask(newTask);
-				newPlan.getPlan().appendPickup(newTask);
-			}
-	
-			//Move
-			for (City neighbour: current.neighbors()) {
-				ExtendedPlan nPlan = copyPlan(first, neighbour);
-				nPlan.getPlan().appendMove(neighbour);
-				queue.add(nPlan);
-				
-				if(pickedUp) {
-					ExtendedPlan nPlan1 = copyPlan(newPlan, neighbour);
-					nPlan1.getPlan().appendMove(neighbour);
-					queue.add(nPlan1);
-				}
+			for(Integer pickup: first.getRemaining()) { // Adds a pickup to a plan
+				ExtendedPlan newPlan = new ExtendedPlan(first.getPlan(), first.count, first.remaining, first.carried);
+				Task next = getTask(tasks, pickup.intValue());
+				newPlan.getPlan().appendMove(next.pickupCity);
+				newPlan.getPlan().appendPickup(next);
+				newPlan.remaining.remove(pickup);
+				newPlan.carried.add(pickup);
+				queue.add(newPlan);
 			}
 		}
 		return null; //Some tasks could not be delivered
-		
 	}
 	
 	private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
@@ -179,39 +172,42 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return (vehicle.getCurrentTasks().weightSum() + task.weight <= vehicle.capacity());
 	}
 	
-	private ExtendedPlan copyPlan(ExtendedPlan plan, City city) {
-		ExtendedPlan newPlan = new ExtendedPlan(new Plan(city), city);
+	private ExtendedPlan copyPlan(ExtendedPlan plan) {
+		ExtendedPlan newPlan = new ExtendedPlan(new Plan(start), plan.getCount(), plan.getRemaining(), plan.getCarried());
 		for (Action a: plan.getPlan()) {
 			newPlan.getPlan().append(a);
 		}
-		newPlan.setCount(plan.getCount());
 		return newPlan;
-	}
-	
-	private boolean planFinished(PriorityQueue<Plan> plans) {
-		boolean res = false;
-		for (Plan p: plans) {
-			 res = p.isSealed() ? true : false;
-		}
-		return res;
 	}
 	
 	public class ExtendedPlan {
 		private Plan plan; 
-		private City city; //Final city in which vehicle arrived
+		//private City city; //Final city in which vehicle arrived
 		private int count; //Number of tasks delivered
-		private HashSet<Task> tasks = new HashSet<Task>();
+		//private HashSet<Task> tasks = new HashSet<Task>();
+		private HashSet<Integer> carried = new HashSet<Integer>();
+		private HashSet<Integer> remaining = new HashSet<Integer>();
 		
-		public ExtendedPlan(Plan plan, City current, int c) {
+		public ExtendedPlan(Plan plan, int c, TaskSet tasks, TaskSet carrying) {
 			this.plan = plan;
 			count = c;
-			city = current;
+			for (Task t: tasks) {
+				remaining.add(new Integer(t.id));
+			}
+			for (Task t: carrying) {
+				carried.add(new Integer(t.id));
+			}
 		}
 		
-		public ExtendedPlan(Plan plan, City current) {
+		public ExtendedPlan(Plan plan, int c, HashSet<Integer> tasks, HashSet<Integer> carrying) {
 			this.plan = plan;
-			city = current;
-			count = 0;
+			count = c;
+			for (Integer t: tasks) {
+				remaining.add(new Integer(t.intValue()));
+			}
+			for (Integer t: carrying) {
+				carried.add(new Integer(t.intValue()));
+			}
 		}
 		
 		public Plan getPlan() {
@@ -222,8 +218,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			return count;
 		}
 		
-		public HashSet<Task> getTasks() {
-			return tasks;
+		public HashSet<Integer> getCarried() {
+			return carried;
+		}
+		
+		public HashSet<Integer> getRemaining() {
+			return remaining;
 		}
 		
 		public void setCount(int c) {
@@ -234,17 +234,22 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			count++;
 		}
 		
-		public City getCity() {
-			return city;
+		public void addCarried(Integer i) {
+			carried.add(i);
 		}
 		
-		public void setCity(City c) {
-			city = c;
+		public void remove(Integer i) {
+			carried.add(i);
 		}
-		
-		public void addTask(Task t) {
-			tasks.add(t);
+	}
+	
+	private Task getTask(TaskSet tasks, int id) {
+		for(Task t: tasks) {
+			if(t.id == id) {
+				return t;
+			}
 		}
+		return null;
 	}
 	
 	public class PlanComparator implements Comparator<ExtendedPlan> {
@@ -256,5 +261,3 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 }
-
-
