@@ -84,7 +84,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	}
 	
 	private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
-		double min = Double.MAX_VALUE;
+		//double min = Double.MAX_VALUE;
 		start = vehicle.getCurrentCity();
 		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
@@ -93,15 +93,19 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, 0, tasks, vehicle.getCurrentTasks(), start);
 		
-		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100, new PlanComparator());
+		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100, new BFSComparator());
 		queue.add(plan);
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
 				
-			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size()) && first.plan.totalDistance() <= min) {
+			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size())) {
 				return first.getPlan(); //Termination condition
 			}
+			
+//			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size()) && first.plan.totalDistance() <= min) {
+//				return first.getPlan(); //Termination condition
+//			}
 			
 			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
 				Task next = setContains(tasks, pickup.intValue()) ?
@@ -125,10 +129,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					newPlan.remaining.remove(pickup);
 					newPlan.carried.add(pickup);
 					queue.add(newPlan);
-					
-					if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
-						min = newPlan.plan.totalDistance();
-					}
+//					
+//					if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
+//						min = newPlan.plan.totalDistance();
+//					}
 				}
 			}
 
@@ -153,9 +157,9 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 				newPlan.carried.remove(carried);
 				queue.add(newPlan);
 				
-				if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
-					min = newPlan.plan.totalDistance();
-				}
+//				if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
+//					min = newPlan.plan.totalDistance();
+//				}
 			}
 		}
 		return null; //Some tasks could not be delivered
@@ -327,6 +331,49 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 			else{
 				return -1;
+			}
+		}
+	}
+	
+	public class BFSComparator implements Comparator<ExtendedPlan> {
+		@Override
+		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
+			if(p1.depth < p2.depth){
+				return 1;
+			}
+			else if(p1.depth == p2.depth){
+				return 0;
+			}
+			else{
+				return -1;
+			}
+		}
+	}
+	
+	public class ASTARComparator implements Comparator<ExtendedPlan> {
+		@Override
+		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
+			
+			double ratioDepth = p1.depth/(double)p2.depth;
+			double ratioDistance = (p2.getPlan().totalDistance()+1.0) / (p1.getPlan().totalDistance()+1.0);
+			
+			if(ratioDepth > 1 && ratioDistance > 1) {
+				return 1;
+			}
+			
+			else if(ratioDepth < 1 && ratioDistance < 1){
+				return -1;
+			}
+			else {
+				if(ratioDepth > 1) {
+					if((1/ratioDistance) < ratioDepth) return 1;
+					else return -1;
+				}
+				else {
+					if((ratioDepth) < ratioDistance) return -1;
+					else return 1;
+				}
+				
 			}
 		}
 	}
