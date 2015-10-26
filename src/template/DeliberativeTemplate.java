@@ -54,6 +54,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		algorithm = Algorithm.valueOf(algorithmName.toUpperCase());
 		
 		// ...
+		
 	}
 	
 	@Override
@@ -64,11 +65,11 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		switch (algorithm) {
 		case ASTAR:
 			// ...
-			plan = naivePlan(vehicle, tasks);
+			plan = astarPlan(vehicle, tasks);
 			break;
 		case BFS:
 			// ...
-			plan = optPlan(vehicle, tasks);
+			plan = bfsPlan(vehicle, tasks);
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
@@ -77,12 +78,16 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 	
-	private Plan optPlan(Vehicle vehicle, TaskSet tasks) {
+	private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
+		Plan plan = null;
+		return plan;
+	}
+	
+	private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
 		double min = Double.MAX_VALUE;
 		start = vehicle.getCurrentCity();
 		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
-			tasks.remove(t);
 			tempWeight += t.weight;
 		}
 		
@@ -93,15 +98,22 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
-			//System.out.println(first.plan.totalDistance() +" depth:"+ first.depth + " count:" + first.count);
 				
 			if(first.getCount() == tasks.size() && first.plan.totalDistance() <= min) {
-				//for(Action a: first.getPlan()) //System.out.println(a.toString());
+//				System.out.println("-----------PLAN FOR " +vehicle.id());
+//				for(Action a: first.getPlan()) System.out.println(a.toString());
 				return first.getPlan(); //Termination condition
 			}
 			
 			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
-				Task next = getTask(tasks, pickup.intValue());
+				Task next;
+				if(setContains(tasks, pickup.intValue())){
+					next = getTask(tasks, pickup.intValue());
+				}
+				else{
+					next = getTask(vehicle.getCurrentTasks(), pickup.intValue());
+				}
+				
 				if (canPickup(vehicle, next, first)) {
 					ExtendedPlan newPlan = new ExtendedPlan(
 						first.getPlan(), 
@@ -128,7 +140,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 
 			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
-				Task next = getTask(tasks, carried.intValue());
+				Task next;
+				if(setContains(tasks, carried.intValue())){
+					next = getTask(tasks, carried.intValue());
+				}
+				else{
+					next = getTask(vehicle.getCurrentTasks(), carried.intValue());
+				}
+				
 				ExtendedPlan newPlan = new ExtendedPlan(
 					first.getPlan(), 
 					first.count + 1, 
@@ -183,7 +202,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		if (!carriedTasks.isEmpty()) {
 			// This cannot happen for this simple agent, but typically
 			// you will need to consider the carriedTasks when the next
-			// plan is computed.
+			// plan is computed.	
 		}
 	}
 	
@@ -301,7 +320,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 		return null;
 	}
-	
+	private boolean setContains(TaskSet tasks, int id) {
+		for(Task t: tasks) {
+			if(t.id == id) return true;
+		}
+		return false;
+	}
 	public class PlanComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
