@@ -99,9 +99,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		while(queue.size() != 0) {
 			ExtendedPlan first = queue.poll();
 				
-			if(first.getCount() == tasks.size() && first.plan.totalDistance() <= min) {
-//				System.out.println("-----------PLAN FOR " +vehicle.id());
-//				for(Action a: first.getPlan()) System.out.println(a.toString());
+			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size()) && first.plan.totalDistance() <= min) {
 				return first.getPlan(); //Termination condition
 			}
 			
@@ -121,7 +119,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 						first.getCity());
 					for (City c: newPlan.getCity().pathTo(next.pickupCity)) {
 						newPlan.getPlan().appendMove(c);
-						// System.out.println("Move to " + c.name + " for pickup at " + next.pickupCity);
 					}
 					newPlan.setCity(next.pickupCity);
 					newPlan.getPlan().appendPickup(next);
@@ -129,7 +126,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					newPlan.carried.add(pickup);
 					queue.add(newPlan);
 					
-					if(newPlan.plan.totalDistance() < min && newPlan.count == tasks.size()){
+					if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
 						min = newPlan.plan.totalDistance();
 					}
 				}
@@ -150,14 +147,13 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					first.getCity());
 				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
 					newPlan.getPlan().appendMove(c);
-					// System.out.println("Move to " + c.name + " for delivery at " + next.deliveryCity);
 				}
 				newPlan.setCity(next.deliveryCity);
 				newPlan.getPlan().appendDelivery(next);
 				newPlan.carried.remove(carried);
 				queue.add(newPlan);
 				
-				if(newPlan.plan.totalDistance() < min && newPlan.count == tasks.size()){
+				if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
 					min = newPlan.plan.totalDistance();
 				}
 			}
