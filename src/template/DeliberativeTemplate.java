@@ -106,13 +106,9 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 			
 			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
-				Task next;
-				if(setContains(tasks, pickup.intValue())){
-					next = getTask(tasks, pickup.intValue());
-				}
-				else{
-					next = getTask(vehicle.getCurrentTasks(), pickup.intValue());
-				}
+				Task next = setContains(tasks, pickup.intValue()) ?
+						getTask(tasks, pickup.intValue())
+						: getTask(vehicle.getCurrentTasks(), pickup.intValue());
 				
 				if (canPickup(vehicle, next, first)) {
 					ExtendedPlan newPlan = new ExtendedPlan(
@@ -140,13 +136,9 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 
 			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
-				Task next;
-				if(setContains(tasks, carried.intValue())){
-					next = getTask(tasks, carried.intValue());
-				}
-				else{
-					next = getTask(vehicle.getCurrentTasks(), carried.intValue());
-				}
+				Task next = setContains(tasks, carried.intValue()) ? 
+					getTask(tasks, carried.intValue())
+					: getTask(vehicle.getCurrentTasks(), carried.intValue());
 				
 				ExtendedPlan newPlan = new ExtendedPlan(
 					first.getPlan(), 
