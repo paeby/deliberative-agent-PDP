@@ -78,48 +78,60 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 	
-	private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
-		Plan plan = null;
-		return plan;
-	}
-	
+	/**
+	 * @param vehicle
+	 * @param tasks
+	 * @param comparator is different for BFS and ASTAR. 
+	 * @return plan for the vehicle according to the algorithm used
+	 */
 	private Plan optPlan(Vehicle vehicle, TaskSet tasks, Comparator<ExtendedPlan> comparator) {
 		
 		start = vehicle.getCurrentCity();
 		int tempWeight = 0;
+		// Total weight of the tasks carried by the vehicle when the plan needs to be recomputed
 		for(Task t: vehicle.getCurrentTasks()) {
 			tempWeight += t.weight;
 		}
 		
+		// Initialize the starting node and the queue with the first node
 		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, 0, computeHeuristic(tasks), tasks, vehicle.getCurrentTasks(), start);
-		
 		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100,comparator);
 		queue.add(plan);
 		
-		int i = 0;
 		while(queue.size() != 0) {
-			i++;
+			// We get the first node. In case of BFS the queue is not sorted but in case of ASTAR it will 
+			// return the node based on a heuristic
 			ExtendedPlan first = queue.poll();
+			
+			// Termination condition: the number of tasks delivered in the plan 
+			// is equal to the total number of tasks, we return the final node
 			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size())) {
-				System.out.println(i);
-				return first.getPlan(); //Termination condition
+				return first.getPlan(); 
 			}
 			
-			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
+			// We need to add to the queue the successors of the node.
+			// There is a successor for each action that still need to be done: pick up an available task 
+			// or deliver a task carried by the vehicle
+			
+			// Adds a pickup to a plan
+			for(Integer pickup: first.getRemaining()) {
 				Task next = setContains(tasks, pickup.intValue()) ?
 						getTask(tasks, pickup.intValue())
 						: getTask(vehicle.getCurrentTasks(), pickup.intValue());
 				
+				// A pickup action is added only if the vehicle has the capacity to take it
 				if (canPickup(vehicle, next, first)) {
 					ExtendedPlan newPlan = new ExtendedPlan(
 						first.getPlan(), 
 						first.count, 
-						first.getWeight() + next.weight,
-						first.depth + 1,
-						computeHeuristic(remainingSet(tasks, first.getRemaining())),
+						first.getWeight() + next.weight, // increasing the weight of the vehicle
+						first.depth + 1, // used to do the BFS and getting the nodes corresponding to their depth
+						computeHeuristic(remainingSet(tasks, first.getRemaining())), // used to order the queue in the ASTAR algorithm
 						first.remaining, 
 						first.carried, 
 						first.getCity());
+					
+					// the vehicle needs to move to the pickup city
 					for (City c: newPlan.getCity().pathTo(next.pickupCity)) {
 						newPlan.getPlan().appendMove(c);
 					}
@@ -130,21 +142,23 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					queue.add(newPlan);
 				}
 			}
-
-			for(Integer carried: first.getCarried()) { // Adds a delivery to a plan
+			// Adds a delivery to a plan
+			for(Integer carried: first.getCarried()) { 
 				Task next = setContains(tasks, carried.intValue()) ? 
 					getTask(tasks, carried.intValue())
 					: getTask(vehicle.getCurrentTasks(), carried.intValue());
 				
 				ExtendedPlan newPlan = new ExtendedPlan(
 					first.getPlan(), 
-					first.count + 1, 
+					first.count + 1, // one more task is delivered
 					first.depth + 1,
-					first.getWeight() - next.weight,
+					first.getWeight() - next.weight, // updating the weight
 					computeHeuristic(remainingSet(tasks, first.getRemaining())),
 					first.remaining, 
 					first.carried, 
 					first.getCity());
+				
+				// move to the delivery city and then deliver
 				for (City c: newPlan.getCity().pathTo(next.deliveryCity)) {
 					newPlan.getPlan().appendMove(c);
 				}
@@ -152,10 +166,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 				newPlan.getPlan().appendDelivery(next);
 				newPlan.carried.remove(carried);
 				queue.add(newPlan);
-				
-//				if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
-//					min = newPlan.plan.totalDistance();
-//				}
 			}
 		}
 		return null; //Some tasks could not be delivered
@@ -194,10 +204,20 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 	
+	/**
+	 * @param vehicle
+	 * @param task
+	 * @param plan
+	 * @return true if the vehicle has the capacity to take the additional task
+	 */
 	private boolean canPickup(Vehicle vehicle, Task task, ExtendedPlan plan) {
 		return (plan.getWeight() + task.weight <= vehicle.capacity());
 	}
 	
+	/**
+	 * @param plan
+	 * @return a copy of an ExtendedPlan
+	 */
 	private ExtendedPlan copyPlan(ExtendedPlan plan) {
 		ExtendedPlan newPlan = new ExtendedPlan(
 			new Plan(start), 
@@ -214,6 +234,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return newPlan;
 	}
 	
+	/**
+	 * @param plan
+	 * @return a copy of a plan
+	 */
 	private Plan copy(Plan plan) {
 		Plan p = new Plan(start);
 		for(Action a: plan) {
@@ -222,16 +246,30 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return p;
 	}
 	
+	/**
+	 * ExtendedPlan is used to describe a node. 
+	 *
+	 */
 	public class ExtendedPlan {
 		private Plan plan; 
-		private int count; //Number of tasks delivered
-		private City city;
-		private int weight; //Sum of all tasks carried by vehicle in plan
-		private HashSet<Integer> carried = new HashSet<Integer>(); 
-		private HashSet<Integer> remaining = new HashSet<Integer>();
-		private int depth;
-		private double heuristic;
+		private int count; // Number of tasks delivered
+		private City city; // Last city in the plan
+		private int weight; // Sum of all tasks carried by vehicle in plan
+		private HashSet<Integer> carried = new HashSet<Integer>(); // Set of the IDs of all carried tasks
+		private HashSet<Integer> remaining = new HashSet<Integer>(); // Set of IDs of tasks not been picked up
+		private int depth; // For BFS
+		private double heuristic; // For ASTAR
 		
+		/**
+		 * @param plan
+		 * @param c
+		 * @param w
+		 * @param d
+		 * @param h
+		 * @param tasks
+		 * @param carrying
+		 * @param city
+		 */
 		public ExtendedPlan(Plan plan, int c, int w, int d, double h, TaskSet tasks, TaskSet carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
@@ -247,6 +285,16 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 		}
 		
+		/**
+		 * @param plan
+		 * @param c
+		 * @param w
+		 * @param d
+		 * @param h
+		 * @param tasks
+		 * @param carrying
+		 * @param city
+		 */
 		public ExtendedPlan(Plan plan, int c, int w, int d, double h, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
@@ -262,52 +310,90 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 		}
 		
+		/**
+		 * @return plan
+		 */
 		public Plan getPlan() {
 			return plan;
 		}
 		
+		/**
+		 * @return count
+		 */
 		public int getCount() {
 			return count;
 		}
 		
+		/**
+		 * @return carried tasks
+		 */
 		public HashSet<Integer> getCarried() {
 			return carried;
 		}
 		
+		/**
+		 * @return remaining tasks
+		 */
 		public HashSet<Integer> getRemaining() {
 			return remaining;
 		}
 		
+		/**
+		 * @param c new count
+		 */
 		public void setCount(int c) {
 			count = c;
 		}
 		
+		/**
+		 * increment count
+		 */
 		public void increment() {
 			count++;
 		}
 		
+		/**
+		 * @return last city of the plan
+		 */
 		public City getCity() {
 			return city;
 		}
 		
+		/**
+		 * @param newCity update last city of the plan
+		 */
 		public void setCity(City newCity) {
 			city = newCity;
 		}
 		
+		/**
+		 * @return total weight carried
+		 */
 		public int getWeight() {
 			return weight;
 		}
 		
+		/**
+		 * @param newWeight update weight carried
+		 */
 		public void setWeight(int newWeight) {
 			weight = newWeight;
 		}
 		
+		/**
+		 * @return heuristic of the plan
+		 */
 		public double getHeuristic() {
 			return heuristic;
 		}
 		
 	}
 	
+	/**
+	 * @param tasks
+	 * @param id
+	 * @return task in tasks with a given id
+	 */
 	private Task getTask(TaskSet tasks, int id) {
 		for(Task t: tasks) {
 			if(t.id == id) {
@@ -316,6 +402,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 		return null;
 	}
+	
+	/**
+	 * @param tasks
+	 * @param id
+	 * @return true if the test tasks contain the task of a given id
+	 */
 	private boolean setContains(TaskSet tasks, int id) {
 		for(Task t: tasks) {
 			if(t.id == id) return true;
@@ -323,9 +415,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return false;
 	}
 	
+	/**
+	 * @param tasks
+	 * @return heuristic for the remaining tasks
+	 */
 	private double computeHeuristic(TaskSet tasks) {
 		double heuristic = Double.MAX_VALUE;
 		// heuristic value = minimal distance between pickup city and delivery city of remaining tasks 
+		// times the number of remaining tasks. The true distance can not be greater than this
 		for(Task t: tasks) {
 			double distance = t.pickupCity.distanceTo(t.deliveryCity);
 			if(distance < heuristic) {
@@ -336,6 +433,11 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return heuristic;
 	}
 	
+	/**
+	 * @param tasks
+	 * @param remaining
+	 * @return TaskSet of all tasks with the given IDs
+	 */
 	private TaskSet remainingSet(TaskSet tasks, HashSet<Integer> remaining) {
 		TaskSet newSet = TaskSet.noneOf(tasks);
 		for(Integer t: remaining) {
@@ -344,6 +446,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return newSet;
 	}
 	
+	/**
+	 * Comparator used by the priority queue for the BFS algorithm. 
+	 * The nodes are visited according to their depth
+	 */
 	public class BFSComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
@@ -353,9 +459,16 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 	}
 	
+	/**
+	 * Comparator used by the priority queue for the ASTAR algorithm.
+	 * The nodes are visited according to the cost + heuristic.
+	 */
 	public class ASTARComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
+			// the cost is the total distance of the plan and the heuristic value 
+			// heuristic value = minimal distance between pickup city and delivery city of remaining tasks 
+			// times the number of remaining tasks 
 			double cost1 = p1.getPlan().totalDistance() + p1.getHeuristic();
 			double cost2 = p2.getPlan().totalDistance() + p2.getHeuristic();
 			
