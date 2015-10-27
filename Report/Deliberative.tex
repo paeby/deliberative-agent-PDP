@@ -63,6 +63,6 @@ The tests show a rapid state-space explosion when we add tasks to the set. For 7
 The algorithms perform similarly on a different topology. So for France, with 6 tasks, we get a low number of iterations for A*, and a high one for BFS (identical to that of Switzerland, since the graph will have the same size for the same number of states) and a total distance for A* which is approximately half that of BFS.
 
 \section{Conclusion}
-
+A deliberative agent is a good solution for a world where there won't be any interference with a computed plan. It's able to compute an optimal solution, using A* and a simple heuristic. However, for cases where the computation of a plan is costly (i.e. with 7 tasks or more in our implementation), and recomputing the plan could be necessary when executing it (several vehicles picking up and delivering the same task set), this can be very inefficient. 
 
 \end{document}
