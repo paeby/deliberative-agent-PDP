@@ -65,11 +65,11 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		switch (algorithm) {
 		case ASTAR:
 			// ...
-			plan = astarPlan(vehicle, tasks);
+			plan = optPlan(vehicle, tasks, new ASTARComparator());
 			break;
 		case BFS:
 			// ...
-			plan = bfsPlan(vehicle, tasks);
+			plan = optPlan(vehicle, tasks, new BFSComparator());
 			break;
 		default:
 			throw new AssertionError("Should not happen.");
@@ -83,29 +83,27 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 	
-	private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
-		//double min = Double.MAX_VALUE;
+	private Plan optPlan(Vehicle vehicle, TaskSet tasks, Comparator<ExtendedPlan> comparator) {
+		
 		start = vehicle.getCurrentCity();
 		int tempWeight = 0;
 		for(Task t: vehicle.getCurrentTasks()) {
 			tempWeight += t.weight;
 		}
 		
-		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, 0, tasks, vehicle.getCurrentTasks(), start);
+		ExtendedPlan plan = new ExtendedPlan(new Plan(start), 0, tempWeight, 0, computeHeuristic(tasks), tasks, vehicle.getCurrentTasks(), start);
 		
-		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100, new BFSComparator());
+		PriorityQueue<ExtendedPlan> queue = new PriorityQueue<ExtendedPlan>(100,comparator);
 		queue.add(plan);
 		
+		int i = 0;
 		while(queue.size() != 0) {
+			i++;
 			ExtendedPlan first = queue.poll();
-				
 			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size())) {
+				System.out.println(i);
 				return first.getPlan(); //Termination condition
 			}
-			
-//			if(first.getCount() == (tasks.size() + vehicle.getCurrentTasks().size()) && first.plan.totalDistance() <= min) {
-//				return first.getPlan(); //Termination condition
-//			}
 			
 			for(Integer pickup: first.getRemaining()) {// Adds a pickup to a plan
 				Task next = setContains(tasks, pickup.intValue()) ?
@@ -118,6 +116,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 						first.count, 
 						first.getWeight() + next.weight,
 						first.depth + 1,
+						computeHeuristic(remainingSet(tasks, first.getRemaining())),
 						first.remaining, 
 						first.carried, 
 						first.getCity());
@@ -129,10 +128,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					newPlan.remaining.remove(pickup);
 					newPlan.carried.add(pickup);
 					queue.add(newPlan);
-//					
-//					if(newPlan.plan.totalDistance() < min && newPlan.count == (tasks.size() + vehicle.getCurrentTasks().size())){
-//						min = newPlan.plan.totalDistance();
-//					}
 				}
 			}
 
@@ -145,7 +140,8 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 					first.getPlan(), 
 					first.count + 1, 
 					first.depth + 1,
-					first.getWeight() - next.weight, 
+					first.getWeight() - next.weight,
+					computeHeuristic(remainingSet(tasks, first.getRemaining())),
 					first.remaining, 
 					first.carried, 
 					first.getCity());
@@ -208,6 +204,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			plan.getCount(), 
 			plan.getWeight(),
 			plan.depth,
+			plan.getHeuristic(),
 			plan.getRemaining(), 
 			plan.getCarried(), 
 			plan.getCity());
@@ -233,13 +230,15 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		private HashSet<Integer> carried = new HashSet<Integer>(); 
 		private HashSet<Integer> remaining = new HashSet<Integer>();
 		private int depth;
+		private double heuristic;
 		
-		public ExtendedPlan(Plan plan, int c, int w, int d, TaskSet tasks, TaskSet carrying, City city) {
+		public ExtendedPlan(Plan plan, int c, int w, int d, double h, TaskSet tasks, TaskSet carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
 			weight = w;
 			this.depth = d;
 			this.city = city;
+			heuristic = h;
 			for (Task t: tasks) {
 				remaining.add(new Integer(t.id));
 			}
@@ -248,11 +247,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			}
 		}
 		
-		public ExtendedPlan(Plan plan, int c, int w, int d, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
+		public ExtendedPlan(Plan plan, int c, int w, int d, double h, HashSet<Integer> tasks, HashSet<Integer> carrying, City city) {
 			this.plan = copy(plan);
 			count = c;
 			weight = w;
 			depth = d;
+			heuristic = h;
 			this.city = city;
 			for (Integer t: tasks) {
 				remaining.add(new Integer(t.intValue()));
@@ -302,6 +302,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 			weight = newWeight;
 		}
 		
+		public double getHeuristic() {
+			return heuristic;
+		}
+		
 	}
 	
 	private Task getTask(TaskSet tasks, int id) {
@@ -318,63 +322,50 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		}
 		return false;
 	}
-	public class PlanComparator implements Comparator<ExtendedPlan> {
-		@Override
-		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
-			if(p1.depth < p2.depth){
-				return 1;
-			}
-			else if(p1.depth == p2.depth){
-				if (p1.getPlan().totalDistance() > p2.getPlan().totalDistance()) return -1;
-				else if(p1.getPlan().totalDistance() < p2.getPlan().totalDistance()) return 1;	
-				else return 0;
-			}
-			else{
-				return -1;
+	
+	private double computeHeuristic(TaskSet tasks) {
+		double heuristic = Double.MAX_VALUE;
+		// heuristic value = minimal distance between pickup city and delivery city of remaining tasks 
+		for(Task t: tasks) {
+			double distance = t.pickupCity.distanceTo(t.deliveryCity);
+			if(distance < heuristic) {
+				heuristic = distance;
 			}
 		}
+		heuristic *= tasks.size();
+		return heuristic;
+	}
+	
+	private TaskSet remainingSet(TaskSet tasks, HashSet<Integer> remaining) {
+		TaskSet newSet = TaskSet.noneOf(tasks);
+		for(Integer t: remaining) {
+			newSet.add(getTask(tasks, t.intValue()));
+		}
+		return newSet;
 	}
 	
 	public class BFSComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
-			if(p1.depth < p2.depth){
-				return 1;
-			}
-			else if(p1.depth == p2.depth){
-				return 0;
-			}
-			else{
-				return -1;
-			}
+			if(p1.depth < p2.depth) return -1;
+			else if(p1.depth > p2.depth) return 1;
+			else return 0;
 		}
 	}
 	
 	public class ASTARComparator implements Comparator<ExtendedPlan> {
 		@Override
 		public int compare(ExtendedPlan p1, ExtendedPlan p2) {
+			double cost1 = p1.getPlan().totalDistance() + p1.getHeuristic();
+			double cost2 = p2.getPlan().totalDistance() + p2.getHeuristic();
 			
-			double ratioDepth = p1.depth/(double)p2.depth;
-			double ratioDistance = (p2.getPlan().totalDistance()+1.0) / (p1.getPlan().totalDistance()+1.0);
-			
-			if(ratioDepth > 1 && ratioDistance > 1) {
-				return 1;
-			}
-			
-			else if(ratioDepth < 1 && ratioDistance < 1){
+			if(cost1 < cost2) {
 				return -1;
 			}
-			else {
-				if(ratioDepth > 1) {
-					if((1/ratioDistance) < ratioDepth) return 1;
-					else return -1;
-				}
-				else {
-					if((ratioDepth) < ratioDistance) return -1;
-					else return 1;
-				}
-				
+			else if(cost1 > cost2) {
+				return 1;
 			}
+			else return 0;
 		}
 	}
 }
