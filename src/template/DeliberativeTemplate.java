@@ -252,23 +252,23 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	 */
 	public class ExtendedPlan {
 		private Plan plan; 
-		private int count; // Number of tasks delivered
-		private City city; // Last city in the plan
-		private int weight; // Sum of all tasks carried by vehicle in plan
+		private int count; 
+		private City city; 
+		private int weight; 
 		private HashSet<Integer> carried = new HashSet<Integer>(); // Set of the IDs of all carried tasks
 		private HashSet<Integer> remaining = new HashSet<Integer>(); // Set of IDs of tasks not been picked up
-		private int depth; // For BFS
-		private double heuristic; // For ASTAR
+		private int depth; 
+		private double heuristic; 
 		
 		/**
 		 * @param plan
-		 * @param c
-		 * @param w
-		 * @param d
-		 * @param h
+		 * @param c Number of tasks delivered
+		 * @param w Sum of all tasks carried by vehicle in plan
+		 * @param d For BFS
+		 * @param h For ASTAR
 		 * @param tasks
 		 * @param carrying
-		 * @param city
+		 * @param city Last city in the plan
 		 */
 		public ExtendedPlan(Plan plan, int c, int w, int d, double h, TaskSet tasks, TaskSet carrying, City city) {
 			this.plan = copy(plan);

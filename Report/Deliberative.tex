@@ -41,8 +41,28 @@ $dist(a,b) = $ distance of the shortest path between cities $a$ and $b$
 By defining $h(n)$ to be the minimum, we ensure that the heuristic is admissible, since it never overestimates the cost to reach the goal. The function then compares two plans by computing for each one the value of $f(n) = g(n) + h(n)$ where $g(n)$ is the distance needed to get to the current state (i.e. the \texttt{totalDistance()} of the plan)
 
 \section{Testing}
-In order to assess the performance of both algorithms we compared them to each other and to the naive-plan algorithm that was already given in the skeleton program. For a configuration 
+In order to assess the performance of both algorithms we compared them to each other and to the naive-plan algorithm that was already given in the skeleton program. We tested these using different configurations
+\begin{itemize}
+\item CH, 6 tasks, BFS, 1 agent $\rightarrow$ 66585 states, 2740km for the plan
+\item CH, 6 tasks, A*, 1 agent $\rightarrow$ 3291 states, 1380km for the plan
+\item CH, 6 tasks, BFS, 2 agents $\rightarrow$ total distance of 3890km for the plan
+\item CH, 6 tasks, A*, 2 agents $\rightarrow$ total distance of 2120km for the plan
+\item CH, 6 tasks, BFS, 3 agents $\rightarrow$ total distance of 4960km for the plan
+\item CH, 6 tasks, A*, 3 agents $\rightarrow$ total distance of 2660km for the plan
+\item CH, 7 tasks, BFS, 1 agent $\rightarrow$ doesn't terminate
+\item CH, 7 tasks, A*, 1 agent $\rightarrow$ 235014 states, 1610km for the plan
+\item CH, 8 tasks, A*, 1 agent $\rightarrow$ doesn't terminate
+\item FR, 6 tasks, BFS, 1 agent $\rightarrow$ 66585 states, 8709km for the plan
+\item FR, 6 tasks, A*, 1 agent $\rightarrow$ 5208 states, 4341km for the plan
+\end{itemize}
+
+What we can see here first of all is that A* clearly performs better than BFS, since it finds the optimal solution and does so in less iterations. Note that the naive algorithm gets a total distance of 4420km for a single agent, in Switzerland with 6 tasks, which is considerably worse than BFS. This tendency is consistent when we use two or three agents.
+
+The tests show a rapid state-space explosion when we add tasks to the set. For 7 tasks, BFS can't cope, while A* has to run 235'014 iterations to find the plan (previously 3291, for 6). For 8 tasks, even A* can't cope. 
+
+The algorithms perform similarly on a different topology. So for France, with 6 tasks, we get a low number of iterations for A*, and a high one for BFS (identical to that of Switzerland, since the graph will have the same size for the same number of states) and a total distance for A* which is approximately half that of BFS.
 
 \section{Conclusion}
+A deliberative agent is a good solution for a world where there won't be any interference with a computed plan. It's able to compute an optimal solution, using A* and a simple heuristic. However, for cases where the computation of a plan is costly (i.e. with 7 tasks or more in our implementation), and recomputing the plan could be necessary when executing it (several vehicles picking up and delivering the same task set), this can be very inefficient. 
 
 \end{document}
