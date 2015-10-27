@@ -1,0 +1,48 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\author{Prisca Aeby, Alexis Semple}
+\title{A reactive agent solution for the Pickup and Delivery problem}
+\date{}
+
+% Paragraph format
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+
+\begin{document}
+\maketitle
+
+The task for this lab was to create a deliberative agent for the pickup and delivery problem. A deliberative agent, unlike a reactive one, has complete explicit knowledge of its environment at a given point in time, and can build a plan according to some logical reasoning. 
+
+Our task was to define a state representation and implement two algorithms for the computation of a plan for our agent: a BFS and an A* algorithm for finding a path from the starting state to a finishing state. We took any finishing state to be a state where all the tasks in the world have been delivered.
+ 
+\section{State description}
+We derived the state definition from a description of the state-transitions. Our agent moves from one state to the next by either adding the actions for a pickup or for a delivery to his plan. Hence every state is defined by the remaining tasks in the world and for each one whether its currently being carried by a vehicle or waiting to be picked up.
+
+In other words, our state is a plan which keeps track of where the remaining tasks are in the world.
+
+\section{Implementation}
+Our implementation uses java's \texttt{PriorityQueue} structure to store the states while computing a plan. The BFS and A* algorithms interact with the structure in slightly different manners. We used different comparators to allow this.
+
+\subsection*{BFS}
+The BFS comparator compares the \texttt{depth} of the two plans being compared, i.e. the total number of pickups and deliveries made in a plan. In this way, it will give higher priority to plans who are in lower levels of the state tree, since a new level is reached by making either a pickup or a delivery. 
+
+\subsection*{A*}
+The A* comparator needs to take a heuristic into account in order to determine priority. We defined it as follows: 
+\begin{center}
+$h(n) = \min\limits_{i}\lbrace dist(p_i, d_i)\rbrace, i \in T$, \\
+$T = $ set of remaining tasks, \\
+$p_i = $ pickup city of a task, $d_i = $ delivery city of a task, \\
+$dist(a,b) = $ distance of the shortest path between cities $a$ and $b$
+\end{center}
+By defining $h(n)$ to be the minimum, we ensure that the heuristic is admissible, since it never overestimates the cost to reach the goal. The function then compares two plans by computing for each one the value of $f(n) = g(n) + h(n)$ where $g(n)$ is the distance needed to get to the current state (i.e. the \texttt{totalDistance()} of the plan)
+
+\section{Testing}
+In order to assess the performance of both algorithms we compared them to each other and to the naive-plan algorithm that was already given in the skeleton program. For a configuration 
+
+\section{Conclusion}
+
+\end{document}
